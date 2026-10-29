@@ -99,3 +99,24 @@ Não há checkout, cadastro de clientes ou integração automática com marketpl
 
 Os textos legais refletem o funcionamento atual e continuam identificados para revisão jurídica. Identificação da empresa e canais públicos devem ser fornecidos pelo proprietário. Nenhum dado de empresa, depoimento, produto ou condição comercial é inventado.
 # Zuppo.site
+
+## Cloudflare Workers: fallback SPA
+
+O fallback das rotas React deve ser configurado em `assets.not_found_handling: "single-page-application"`, conforme `wrangler.hospedagem.example.jsonc`. Não usar `/* /index.html 200` em `_redirects`: essa regra também reescreve `/index.html` para si mesma e causa erro 100324 no deploy de assets do Workers. O Vite copia o conteúdo de `public/` para `dist/`; a regra foi removida na origem.
+
+O repositório inclui um exemplo, mas não um `wrangler.jsonc` com seu bucket real. Na primeira configuração, copie o exemplo para `wrangler.jsonc` e preencha o nome do bucket. Se você já tem uma configuração no Cloudflare, preserve os valores do seu ambiente e use estes campos:
+
+```json
+{
+  "main": "dist/server/index.js",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/go/*", "/media/*"]
+  }
+}
+```
+
+`run_worker_first` mantém catálogo, autenticação, redirecionamento de afiliados e mídia no backend, em vez de receberem o HTML da SPA. `public/.assetsignore` é copiado para o build e exclui `server/` e `.openai/` do upload de assets estáticos. O Worker continua sendo enviado separadamente pelo campo `main`.
+
+No Cloudflare Workers Builds: diretório raiz do projeto, build `npm run build`, deploy `npx wrangler deploy` e Node.js 22.13+ (o projeto também foi validado em Node.js 24). Usar o binding R2 `BUCKET` com seu bucket real e as variáveis de runtime `CATALOG_PROVIDER=supabase`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`. Não colocar credenciais no Git.
