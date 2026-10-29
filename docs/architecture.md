@@ -1,21 +1,23 @@
-# Arquitetura atual
+# Arquitetura
 
-React → APIs same-origin do Worker → Supabase (catálogo público, quando habilitado) / R2 (CMS, mídia e eventos). Veja [detalhes e limites da conexão](supabase-leitura.md). O adaptador local implementa as mesmas operações de armazenamento no filesystem. `npm run dev` sobe backend e frontend juntos, com persistência entre reinícios.
+React → APIs do Cloudflare Worker → Supabase (catálogo e autorização) / R2 (CMS, mídia e eventos).
 
-- `worker/offers.js`: leitura paginada dos objetos, consulta, publicação e validação de destinos.
-- `worker/settings.js`: canais e contatos reais; compatibilidade de leitura dos canais da home anterior.
-- `worker/media.js`: biblioteca com cursor, metadados e proteção de referências.
-- `worker/index.js`: autorização por identidade hospedada, origem das mutações, rotas e composição.
-- `worker/home-validation.js`: conteúdo estruturado, imagens, campanhas e contraste.
+O build gera os arquivos públicos e um Worker ESM separado dos assets. A configuração Wrangler encaminha todas as rotas ao Worker, que protege as respostas, resolve APIs e delega os arquivos/SPA ao binding ASSETS. Nenhum dado depende do filesystem de produção.
 
-Os registros ficam em `offers/:id`, `settings/site`, `content/home-draft`, `content/home-published`, `media/:id` e `events/:timestamp/:id`. Produtos demonstrativos não são carregados no runtime. Fixtures de teste são exclusivas de `tests/fixtures/`.
+- `worker/index.js`: rotas e composição.
+- `worker/admin-auth.js`: login, renovação, encerramento e verificação de administrador.
+- `worker/supabase.js`: consulta pública sujeita a RLS.
+- `worker/supabase-admin.js`: consultas e RPCs administrativas com o JWT do usuário.
+- `worker/home-validation.js`: validação de campanhas, links e cores.
+- `worker/media.js`: biblioteca e proteção de referências.
+- `server/dev.mjs`: HTTP/Vite em loopback; não é um servidor de produção.
 
-A publicação de ofertas exige imagem e destino válidos. O catálogo e `/go/:id` reavaliam expiração, disponibilidade e status. Cada alteração de preço gera um histórico administrativo. Dados de preço não são apresentados como monitoramento de loja.
+O R2 armazena `settings/site`, `content/home-draft`, `content/home-published`, `media/:id` e `events/:timestamp/:id`. Registros antigos de catálogo podem permanecer em `offers/:id`, mas não são a fonte pública quando Supabase está habilitado.
 
-Antes de crescer o volume, migrar registros e consultas para D1/PostgreSQL com índices de status, categoria, loja, preço e publicação. Manter mídia em R2. Adicionar índices/agregações de métricas e uma política de retenção. A migração deve importar apenas os registros reais, com backup, validação e reconciliação de contagens, sem modificar o contrato HTTP.
+Migrações SQL versionadas criam catálogo, histórico e permissões. Salvamentos e exclusões são transacionais, sem credenciais administrativas no navegador. O modo de desenvolvimento exige um sinalizador interno e nunca é habilitado por padrão no Worker.
 
-Integrações comerciais são serviços separados, com APIs oficiais, idempotência, limites de requisição e auditoria. Segredos ficam no backend. Não existem conectores comerciais falsos ou automações ativas nesta versão.
+O editor da home usa revisão e escrita condicional para evitar sobrescrita. Exclusão de mídia verifica referências na home e nas ofertas, inclusive rascunhos acessíveis ao administrador.
 
-## Autenticação Supabase ativa
+Filtros, contagem e paginação pública já são executados no PostgreSQL pela RPC003. Métricas precisam de agregação e política operacional de retenção. Integrações comerciais devem ter idempotência, limites e auditoria.
 
-Com o provedor Supabase, o painel autentica por e-mail/senha com cookies HttpOnly, verifica identidade e vínculo de administrador em cada chamada e encaminha o JWT às operações SQL sujeitas a RLS. Gravação/exclusão usam RPCs transacionais, sem catálogo paralelo em R2. Ver [documentação da etapa 3](supabase-admin.md).
+Módulos adicionais: http (respostas e headers), request-security (entrada e contenção), homepage (revisões/CAS), tracking (métricas), image-validation (estrutura/dimensões) e admin-offers (operações administrativas). Ver [configuração e limites](refinamento.md).

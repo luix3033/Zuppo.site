@@ -9,7 +9,7 @@ import {defaultHome} from './config';
 import type {HomeConfig,HomeSection} from './config';
 import {categories} from '../../data/catalog';
 import {CategoryIcon} from '../../components/CategoryIcon';
-import {discountPercent} from '../../lib/offers';
+
 export function useHomeConfig(){const [config,setConfig]=useState(defaultHome);useEffect(()=>{const c=new AbortController();fetch('/api/homepage',{signal:c.signal}).then(r=>r.ok?r.json():Promise.reject()).then(d=>setConfig(d.config)).catch(()=>{});return()=>c.abort()},[]);return config}
 export function HomePage({config,notify,...props}:CatalogProps&{config:HomeConfig;notify:(s:string)=>void}){
  const navigate=useNavigate();
@@ -17,7 +17,7 @@ export function HomePage({config,notify,...props}:CatalogProps&{config:HomeConfi
  case 'hero':return <Hero content={config.hero}/>;
  case 'benefits':return <Benefits content={config.benefits}/>;
  case 'categories':return <section className="categories-section" id="categorias"><div className="section-heading compact"><div><span className="eyebrow">{config.categories.eyebrow}</span><h2>{config.categories.title}</h2></div><Link to="/ofertas" className="text-link">Ver tudo</Link></div><div className="category-grid">{config.categories.ids.map(id=>{const c=categories.find(c=>c.id===id);return c?<button className="category-item" key={id} onClick={()=>navigate('/ofertas?categoria='+id)}><span className="category-icon"><CategoryIcon id={id}/></span><span>{c.name}</span></button>:null})}</div></section>;
- case 'offers':{const offers=props.offers.filter(o=>o.available&&o.status==='active'&&(!o.expiresAt||Date.parse(o.expiresAt)>Date.now())&&(s.store==='all'||o.store===s.store)&&(s.mode!=='featured'||o.featured)&&(s.mode!=='flash'||o.flash)&&(s.mode!=='manual'||s.offerIds.includes(o.id))&&(s.mode!=='category'||s.category==='all'||o.category===s.category)&&(s.mode!=='discount'||discountPercent(o)>=30));return <Catalog home {...props} offers={offers} homeOptions={{title:s.title,description:s.description,limit:s.limit}}/>;}
+ case 'offers':{const selection={...(s.store==='all'?{}:{store:s.store}),...(s.mode==='featured'?{featured:true}:{}),...(s.mode==='flash'?{flash:true}:{}),...(s.mode==='manual'?{ids:s.offerIds}:{}),...(s.mode==='category'&&s.category!=='all'?{category:s.category}:{}),...(s.mode==='discount'?{minDiscount:30}:{})};return <Catalog home {...props} sectionQuery={selection} homeOptions={{title:s.title,description:s.description,limit:s.limit}}/>;}
  case 'flash':return <FlashSection content={config.flash}/>;
  case 'community':return <Community content={config.community} notify={notify}/>;
  case 'how':return <HowItWorks content={config.how}/>;

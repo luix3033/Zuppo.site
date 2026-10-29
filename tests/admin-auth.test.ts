@@ -46,8 +46,8 @@ test('all SQL admin routes require Supabase identity; writes forward its JWT and
   if(u.pathname==='/rest/v1/offers')return Response.json(u.searchParams.get('offset')==='0'?[row]:[]);
   return auth(url,init);
  };
- const handler=createHandler({});const runtime={...env,ADMIN_EMAIL:'legacy@example.com',BUCKET:{put:async(...args)=>bucketWrites.push(args),list:async()=>({objects:[]})}};
- const call=(path,method='GET',body?,cookie=true,origin='https://site.test')=>handler.fetch(new Request('https://site.test'+path,{method,headers:{Origin:origin,'Content-Type':'application/json','oai-authenticated-user-email':'legacy@example.com',...(cookie?{Cookie:'__Host-zuppo-access=valid-access'}:{})},...(body?{body:JSON.stringify(body)}:{})}),runtime);
+ const handler=createHandler({});const runtime={...env,DEV_AUTH_ENABLED:true,DEV_ADMIN_EMAIL:'legacy@example.com',BUCKET:{put:async(...args)=>bucketWrites.push(args),list:async()=>({objects:[]})}};
+ const call=(path,method='GET',body?,cookie=true,origin='https://site.test')=>handler.fetch(new Request('https://site.test'+path,{method,headers:{Origin:origin,'Content-Type':'application/json','x-zuppo-dev-email':'legacy@example.com',...(cookie?{Cookie:'__Host-zuppo-access=valid-access'}:{})},...(body?{body:JSON.stringify(body)}:{})}),runtime);
  assert.equal((await call('/api/admin/offers','GET',undefined,false)).status,401);
  const rows=await(await call('/api/admin/offers')).json();assert.equal(rows[0].status,'draft');assert.equal(rows[0].publishedAt,row.updated_at);
  const offer={id:'real-offer',name:'Produto real',description:'Descrição real',category:'games',store:'amazon',image:'https://example.com/p.webp',currentPrice:129.99,previousPrice:199.9,affiliateUrl:'https://example.com/buy',status:'active',available:true};
@@ -57,4 +57,26 @@ test('all SQL admin routes require Supabase identity; writes forward its JWT and
  assert.equal((await call('/api/admin/offers/real-offer','DELETE')).status,200);assert.equal(mutations[1].path,'/rest/v1/rpc/zuppo_delete_offer');assert.equal(bucketWrites.length,0);
  assert.equal((await call('/api/admin/offers/real-offer','PUT',{...offer,affiliateUrl:'javascript:bad'})).status,400);
  globalThis.fetch=async()=>Response.json({},{status:401});assert.equal((await call('/api/admin/settings','PUT',{})).status,401);
+});
+test('logout revokes refresh-only sessions and reports remote failure after clearing cookies',async()=>{
+ const calls=[];
+ const r=await handleAdminAuth(request('/api/auth/logout',{}, {Cookie:'__Host-zuppo-refresh=valid-refresh'}),env,async(url,init)=>{
+  const u=new URL(url);calls.push(u.pathname);
+  if(u.pathname==='/auth/v1/token'){assert.equal(JSON.parse(init.body).refresh_token,'valid-refresh');return Response.json({access_token:'fresh-access',refresh_token:'fresh-refresh',expires_in:3600});}
+  assert.equal(init.headers.Authorization,'Bearer fresh-access');return new Response(null,{status:204});
+ });
+ assert.equal(r.status,200);assert.deepEqual(calls,['/auth/v1/token','/auth/v1/logout']);assert.equal((await r.json()).remoteRevocationConfirmed,true);
+ const failed=await handleAdminAuth(request('/api/auth/logout',{}, {Cookie:'__Host-zuppo-access=valid-access'}),env,async()=>new Response(null,{status:500}));
+ assert.equal(failed.status,503);assert.equal((await failed.json()).localSessionCleared,true);assert.ok(failed.headers.getSetCookie().every(c=>c.includes('Max-Age=0')));
+});
+test('login refuses oversize JSON and wrong content type before talking to Auth',async()=>{
+ const never=()=>{throw Error('Upstream must not be invoked');};
+ await assert.rejects(handleAdminAuth(new Request('https://site.test/api/auth/login',{method:'POST',headers:{Origin:'https://site.test','Content-Type':'application/json'},body:JSON.stringify({email:'a@example.com',password:'x'.repeat(5000)})}),env,never),e=>e.status===413);
+ await assert.rejects(handleAdminAuth(new Request('https://site.test/api/auth/login',{method:'POST',headers:{Origin:'https://site.test','Content-Type':'text/plain'},body:'{}'}),env,never),e=>e.status===415);
+});
+test('configured auth rate limiter stops login before credential exchange and returns Retry-After',async()=>{
+ let upstream=false;
+ const runtime={...env,AUTH_RATE_LIMITER:{limit:async()=>({success:false})}};
+ const r=await handleAdminAuth(request('/api/auth/login',{email:'admin@example.com',password:'test'}),runtime,async()=>{upstream=true;throw Error('must not exchange credentials');});
+ assert.equal(r.status,429);assert.ok(Number(r.headers.get('Retry-After'))>0);assert.equal(upstream,false);
 });

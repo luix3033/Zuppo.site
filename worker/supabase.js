@@ -1,4 +1,4 @@
-import {publicOffer, queryOffers} from './offers.js';
+import {publicOffer} from './offers.js';
 
 // API HTTP oficial do Supabase: compatível com Node e Cloudflare Workers.
 // Apenas chave publishable; nunca encaminhar identidade de administrador.
@@ -24,57 +24,65 @@ export function mapSupabaseOffer(row) {
     specs: p.specs, isDemo: false,
   };
 }
+/** Validação compartilhada antes de enviar filtros tipados ao PostgreSQL. */
+export function parseCatalogQuery(params = new URLSearchParams()) {
+  const bad = message => { const error = new Error(message); error.status = 400; throw error; };
+  const text = (key, max=100) => { const value=(params.get(key)||'').trim(); if(value.length>max)bad('Filtro muito longo.'); return value; };
+  const number = (key, fallback, max, integer=false) => {
+    if(!params.has(key))return fallback;
+    const raw=params.get(key); const value=Number(raw);
+    if(raw===''||!Number.isFinite(value)||value<0||value>max||(integer&&!Number.isInteger(value)))bad('Confira os limites dos filtros.');
+    return value;
+  };
+  const query={q:text('q',200),category:text('category'),store:text('store'),sort:text('sort')||'recent',
+    minPrice:number('minPrice',0,90071992547409.9),maxPrice:number('maxPrice',undefined,90071992547409.9),
+    minDiscount:number('minDiscount',0,100,true),page:number('page',1,10000,true),limit:number('limit',24,100,true)};
+  if(query.q.trim().split(/\s+/).filter(Boolean).length>12)bad('Busca muito extensa.');
+  if(!['recent','price-asc','price-desc','discount'].includes(query.sort)||query.page<1||query.limit<1)bad('Ordenação ou página inválida.');
+  if(!['','all','games','informatica','celulares','casa','eletrodomesticos','esporte','beleza','bebes','pets','moda'].includes(query.category)||!['','all','amazon','mercado-livre','shopee'].includes(query.store))bad('Categoria ou loja inválida.');
+  if(params.has('ids')) {
+    const ids=params.get('ids')?params.get('ids').split(','):[];
+    if(ids.length>200||ids.some(id=>!/^[-a-zA-Z0-9_]{1,100}$/.test(id)))bad('Lista de ofertas inválida.');
+    query.ids=[...new Set(ids)];
+  }
+  for(const key of ['featured','flash'])if(params.has(key)){
+    if(!['true','false'].includes(params.get(key)))bad('Filtro inválido.');
+    query[key]=params.get(key)==='true';
+  }
+  return query;
+}
 export function createSupabaseCatalog(env, fetcher = fetch) {
   const base = new URL(env.SUPABASE_URL);
   if (base.protocol !== 'https:' || base.username || base.password || base.pathname !== '/' || base.search || base.hash) throw Error('URL Supabase inválida');
   if (!env.SUPABASE_PUBLISHABLE_KEY?.startsWith('sb_publishable_')) throw Error('Configure somente a chave publishable');
-  async function request(params, signal) {
-    const response = await fetcher(new URL('/rest/v1/offers?' + params, base), {
-      headers: {apikey: env.SUPABASE_PUBLISHABLE_KEY, Accept: 'application/json'},
-      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),
-      cache: 'no-store',
+  async function request(path, signal, body) {
+    const response = await fetcher(new URL('/rest/v1/'+path, base), {
+      method:body===undefined?'GET':'POST',
+      headers: {apikey: env.SUPABASE_PUBLISHABLE_KEY, Accept: 'application/json',...(body===undefined?{}:{'Content-Type':'application/json'})},
+      ...(body===undefined?{}:{body:JSON.stringify(body)}),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),cache:'no-store',
     });
-    // Não expor erro remoto, URL ou chave na resposta pública.
-    if (!response.ok) throw Error('Catálogo indisponível');
-    const rows = await response.json();
-    if (!Array.isArray(rows)) throw Error('Resposta de catálogo inválida');
-    return rows;
-  }
-  function params() {
-    return new URLSearchParams({select, status: 'eq.active', available: 'eq.true',
-      published_at: 'lte.' + new Date().toISOString(),
-      or: '(expires_at.is.null,expires_at.gt.' + new Date().toISOString() + ')',
-      order: 'published_at.desc,id.asc'});
-  }
-  async function list(filters = new URLSearchParams(), signal) {
-    const q = params();
-    if (filters.get('category') && filters.get('category') !== 'all') q.set('product.category_id', 'eq.' + filters.get('category'));
-    if (filters.get('store') && filters.get('store') !== 'all') q.set('marketplace_id', 'eq.' + filters.get('store'));
-    for (const [key, operator] of [['minPrice', 'gte'], ['maxPrice', 'lte']]) {
-      if (filters.has(key)) {
-        const cents = Math.round(Number(filters.get(key)) * 100);
-        if (Number.isSafeInteger(cents) && cents >= 0) q.append('current_price_cents', operator + '.' + cents);
-      }
+    if (!response.ok) {
+      const error=new Error('O catálogo está temporariamente indisponível. Tente novamente em instantes.');
+      error.status=503;error.code=response.status===404?'CATALOG_QUERY_NOT_CONFIGURED':'CATALOG_UNAVAILABLE';throw error;
     }
-    // PostgREST pode limitar o tamanho de cada resposta. Continuar até a página vazia.
-    // Busca textual/desconto e paginação final mantêm o contrato atual da API.
-    const all = [];
-    let offset = 0;
-    for (;;) {
-      q.set('limit', '200'); q.set('offset', String(offset));
-      const rows = await request(q, signal);
-      if (!rows.length) break;
-      all.push(...rows.map(mapSupabaseOffer).filter(publicOffer));
-      offset += rows.length;
-    }
-    return all;
+    return response.json();
   }
+  async function query(params = new URLSearchParams(), signal) {
+    const filters=parseCatalogQuery(params);
+    const data=await request('rpc/zuppo_query_offers',signal,{filters});
+    if(!data||!Array.isArray(data.items)||!Number.isSafeInteger(data.total)||data.total<0||!Number.isInteger(data.page)||data.page<1||!Number.isInteger(data.limit)||data.limit<1||data.limit>100||data.items.length>data.limit||!Number.isInteger(data.totalPages)||data.totalPages<1)throw Error('Resposta de catálogo inválida');
+    return {...data,items:data.items.map(mapSupabaseOffer).filter(publicOffer)};
+  }
+  async function list(params = new URLSearchParams('limit=100'), signal) {return (await query(params,signal)).items;}
   async function find(id, signal) {
-    const q = params(); q.set('id', 'eq.' + id); q.set('limit', '1');
-    const rows = await request(q, signal);
-    if (!rows.length) return null;
-    const offer = mapSupabaseOffer(rows[0]);
-    return publicOffer(offer) ? offer : null;
+    if(!/^[-a-zA-Z0-9_]{1,100}$/.test(id))return null;
+    const now=new Date().toISOString();
+    const params=new URLSearchParams({select,id:'eq.'+id,limit:'1',status:'eq.active',available:'eq.true',published_at:'lte.'+now,or:'(expires_at.is.null,expires_at.gt.'+now+')'});
+    const rows=await request('offers?'+params,signal);
+    if(!Array.isArray(rows))throw Error('Resposta de catálogo inválida');
+    if(!rows.length)return null;
+    const offer=mapSupabaseOffer(rows[0]);return publicOffer(offer)?offer:null;
   }
-  return {list, find, async query(filters, signal) {return queryOffers(await list(filters, signal), filters);}};
+  return {list,find,query};
 }

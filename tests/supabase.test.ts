@@ -9,34 +9,33 @@ test('Supabase maps cents, nullable prices and the current Offer contract',()=>{
  assert.equal(mapSupabaseOffer({...row,previous_price_cents:null}).previousPrice,undefined);
  assert.throws(()=>mapSupabaseOffer({...row,current_price_cents:'NaN'}));
 });
-test('Supabase follows partial remote pages, composes filters, and uses only the public key',async()=>{
- const calls:URL[]=[];
+test('Supabase asks SQL for exactly one page and forwards combined typed filters with public credentials',async()=>{
+ const calls:any[]=[];
  const catalog=createSupabaseCatalog(config,async(url,init)=>{
-  const u=new URL(url); calls.push(u); assert.equal(init.headers.apikey,config.SUPABASE_PUBLISHABLE_KEY); assert.equal(init.headers.Authorization,undefined); assert.equal(init.cache,'no-store');
-  const offset=Number(u.searchParams.get('offset'));
-  return Response.json(offset===0?[row]:offset===1?[{...row,id:'other',current_price_cents:14000}]:[]);
+  const u=new URL(url);calls.push({url:u,body:JSON.parse(init.body)});
+  assert.equal(init.headers.apikey,config.SUPABASE_PUBLISHABLE_KEY);assert.equal(init.headers.Authorization,undefined);assert.equal(init.cache,'no-store');
+  assert.equal(init.method,'POST');return Response.json({items:[row],total:401,page:2,limit:1,totalPages:401});
  });
  const result=await catalog.query(new URLSearchParams('limit=1&page=2&category=games&store=amazon&minDiscount=20&sort=price-asc'));
- assert.equal(result.total,2); assert.equal(result.items[0].id,'other'); assert.deepEqual(calls.map(u=>u.searchParams.get('offset')),['0','1','2']);
- assert.equal(calls[0].searchParams.get('product.category_id'),'eq.games');
- assert.equal(calls[0].searchParams.get('marketplace_id'),'eq.amazon');
+ assert.equal(result.total,401);assert.equal(result.items[0].currentPrice,129.99);assert.equal(calls.length,1);
+ assert.equal(calls[0].url.pathname,'/rest/v1/rpc/zuppo_query_offers');assert.equal(calls[0].body.filters.category,'games');assert.equal(calls[0].body.filters.store,'amazon');assert.equal(calls[0].body.filters.page,2);assert.equal(calls[0].body.filters.maxPrice,undefined);
 });
 test('Supabase never returns unsafe destinations, expired records, or a partial result after an outage',async()=>{
- const catalog=createSupabaseCatalog(config,async url=>Response.json(new URL(url).searchParams.get('offset')==='0'?[{...row,affiliate_url:'javascript:bad'},{...row,expires_at:'2000-01-01T00:00:00Z'}]:[]));
+ const catalog=createSupabaseCatalog(config,async url=>Response.json(new URL(url).pathname.includes('/rpc/')?{items:[{...row,affiliate_url:'javascript:bad'},{...row,expires_at:'2000-01-01T00:00:00Z'}],total:2,page:1,limit:100,totalPages:1}:[{...row,affiliate_url:'javascript:bad'}]));
  assert.deepEqual(await catalog.list(),[]);
  assert.equal(await catalog.find('bad'),null);
  const offline=createSupabaseCatalog(config,async()=>new Response('private diagnostics',{status:500}));
- await assert.rejects(offline.list(),/Catálogo indisponível/);
+ await assert.rejects(offline.list(),/temporariamente indisponível/);
  assert.throws(()=>createSupabaseCatalog({...config,SUPABASE_PUBLISHABLE_KEY:'sb_secret_bad'}));
 });
 test('Supabase backs public routes and redirects; legacy identity cannot change the SQL catalog',async t=>{
  const previous=globalThis.fetch; t.after(()=>{globalThis.fetch=previous});
  let requests=0;
- globalThis.fetch=async url=>{requests++;const u=new URL(url);return Response.json(u.searchParams.get('offset')==='0'||u.searchParams.has('id')?[row]:[])};
+ globalThis.fetch=async url=>{requests++;const u=new URL(url);return Response.json(u.pathname.includes('/rpc/')?{items:[row],total:1,page:1,limit:12,totalPages:1}:[row])};
  const events:any[]=[];
- const env={...config,ADMIN_EMAIL:'owner@example.com',BUCKET:{put:async(...args)=>events.push(args),list:async()=>({objects:[]})}};
+ const env={...config,DEV_AUTH_ENABLED:true,DEV_ADMIN_EMAIL:'owner@example.com',BUCKET:{put:async(...args)=>events.push(args),list:async()=>({objects:[]})}};
  const handler=createHandler({});
- const call=(path,method='GET',body?)=>handler.fetch(new Request('https://site.test'+path,{method,headers:{Origin:'https://site.test','oai-authenticated-user-email':'owner@example.com','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})}),env);
+ const call=(path,method='GET',body?)=>handler.fetch(new Request('https://site.test'+path,{method,headers:{Origin:'https://site.test','x-zuppo-dev-email':'owner@example.com','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})}),env);
  const list=await call('/api/offers?limit=12'); assert.equal(list.status,200); assert.equal((await list.json()).total,1);assert.equal(list.headers.get('cache-control'),'no-store');
  assert.equal((await(await call('/api/offers/db-offer')).json()).currentPrice,129.99);
  const redirect=await call('/go/db-offer');assert.equal(redirect.status,302);assert.equal(redirect.headers.get('Location'),row.affiliate_url);assert.equal(events.length,1);

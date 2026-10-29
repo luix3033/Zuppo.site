@@ -1,3 +1,4 @@
+import {readJsonBody} from './request-security.js';
 export async function mediaApi(request,db,url,offers){
  const id=url.pathname.slice('/api/admin/media/'.length);const key='media/'+id;
  if(url.pathname==='/api/admin/media'&&request.method==='GET'){
@@ -7,7 +8,7 @@ export async function mediaApi(request,db,url,offers){
  if(!/^[a-f0-9-]+\.(png|jpg|webp)$/.test(id))return Response.json({error:'Imagem inválida.'},{status:400});
  const file=await db.get(key);if(!file)return Response.json({error:'Imagem não encontrada.'},{status:404});
  if(request.method==='PUT'){
-  const input=await request.json();if(typeof input.name!=='string'||!input.name.trim()||input.name.length>200||typeof input.alt!=='string'||input.alt.length>500)return Response.json({error:'Informe um nome e uma descrição válidos.'},{status:400});
+  const input=await readJsonBody(request,4096);if(!input||typeof input!=='object'||typeof input.name!=='string'||!input.name.trim()||input.name.length>200||typeof input.alt!=='string'||input.alt.length>500)return Response.json({error:'Informe um nome e uma descrição válidos.'},{status:400});
   await db.put(key,file.body,{httpMetadata:file.httpMetadata,customMetadata:{...file.customMetadata,name:input.name.trim(),alt:input.alt}});return Response.json({ok:true});
  }
  if(request.method==='DELETE'){
