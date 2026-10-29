@@ -1,0 +1,25 @@
+import {useSiteSettings} from '../../hooks/useSiteSettings';
+import { useEffect, useState } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowRight, ArrowUpRight, ChevronDown, Heart, Home as HomeIcon, LayoutGrid, Menu, MessageCircle, Moon, Search, ShieldCheck, Sun, X, Zap } from 'lucide-react';
+import { Logo } from '../Logo';
+export function Header({ favoriteCount, dark, toggleTheme,announcement='Ofertas que chegam primeiro.' }: { favoriteCount: number; dark: boolean; toggleTheme: () => void;announcement?:string }) {
+  const navigate = useNavigate();
+  const channels=useSiteSettings();const community=!!(channels.whatsappUrl||channels.telegramUrl||channels.instagramUrl);
+  const location = useLocation();
+  const [query, setQuery] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => { setMenuOpen(false); setQuery(new URLSearchParams(location.search).get('q') || ''); }, [location]);
+  return <>
+    <div className="announcement"><div className="container"><span><Zap size={12} fill="currentColor" /> {announcement}</span><span className="announcement-live">Curadoria de ofertas · Compra direto na loja</span></div></div>
+    <header className="site-header"><div className="container header-main">
+      <Link className="brand-link" to="/" aria-label="Zuppo, página inicial"><Logo /></Link>
+      <form className="header-search" role="search" onSubmit={e => { e.preventDefault(); navigate(`/ofertas${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ''}`); }}><Search size={19} /><input aria-label="Pesquisar produtos ou categorias" placeholder="O que você quer encontrar hoje?" value={query} onChange={e => setQuery(e.target.value)} /><button type="submit" aria-label="Pesquisar"><ArrowRight size={18} /></button></form>
+      <div className="header-actions"><Link className="header-favorites" to="/favoritos"><span className="heart-wrap"><Heart size={21} />{favoriteCount > 0 && <b>{favoriteCount}</b>}</span><span>Meus favoritos</span></Link><span className="header-divider" /><button className="theme-toggle" onClick={toggleTheme} aria-label={dark ? 'Ativar tema claro' : 'Ativar tema escuro'}>{dark ? <Sun size={20} /> : <Moon size={20} />}</button><button className="mobile-menu-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen}>{menuOpen ? <X /> : <Menu />}</button></div>
+    </div><nav className={`desktop-nav ${menuOpen ? 'menu-open' : ''}`} aria-label="Navegação principal"><div className="container nav-inner"><div className="nav-links"><NavLink to="/" end>Início</NavLink><NavLink to="/ofertas">Todas as ofertas</NavLink><Link to="/ofertas?flash=true" className="flash-nav"><Zap size={14} fill="currentColor" /> Ofertas relâmpago</Link><Link to="/#categorias">Categorias <ChevronDown size={13} /></Link><NavLink to="/sobre">Como funciona</NavLink></div>{community&&<Link to="/#comunidade" className="nav-community"><MessageCircle size={15} /> Vem pra comunidade <ArrowUpRight size={14} /></Link>}</div></nav></header>
+  </>;
+}
+
+export function Footer() { const channels=useSiteSettings();const community=!!(channels.whatsappUrl||channels.telegramUrl||channels.instagramUrl);return <footer className="site-footer"><div className="container"><div className="footer-top"><div className="footer-brand"><Link to="/" aria-label="Zuppo início"><Logo /></Link><p>Ofertas que chegam primeiro.<br />Boas escolhas começam aqui.</p></div><div><h3>Explore</h3><Link to="/ofertas">Todas as ofertas</Link><Link to="/ofertas?flash=true">Ofertas relâmpago</Link><Link to="/favoritos">Meus favoritos</Link></div><div><h3>A Zuppo</h3><Link to="/sobre">Sobre a gente</Link>{community&&<Link to="/#comunidade">Nossa comunidade</Link>}<Link to="/contato">Fale com a Zuppo</Link></div><div className="footer-transparency"><ShieldCheck size={23} /><h3>Achados com transparência.</h3><p>A Zuppo pode receber comissões por compras realizadas através dos links divulgados, sem custo adicional para você.</p></div></div><div className="footer-disclosure">Os preços, a disponibilidade e as condições de compra podem mudar nas lojas parceiras.</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Zuppo. Feito para encontrar boas oportunidades.</span><div><Link to="/privacidade">Privacidade</Link><Link to="/termos">Termos de uso</Link><span className="footer-country">Brasil · Português · R$</span></div></div></div></footer>; }
+
+export function MobileNav({ count }: { count: number }) { return <nav className="mobile-bottom-nav" aria-label="Navegação rápida"><NavLink to="/" end><HomeIcon size={21} /><span>Início</span></NavLink><NavLink to="/ofertas"><Zap size={21} /><span>Ofertas</span></NavLink><Link to="/#categorias"><LayoutGrid size={21} /><span>Categorias</span></Link><NavLink to="/favoritos"><span className="mobile-heart"><Heart size={21} />{count > 0 && <b>{count}</b>}</span><span>Favoritos</span></NavLink></nav>; }

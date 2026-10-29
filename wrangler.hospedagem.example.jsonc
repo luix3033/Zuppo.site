@@ -1,0 +1,14 @@
+{
+  "name": "zuppo",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-10-29",
+  "vars": {
+    "CATALOG_PROVIDER": "supabase"
+  },
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "SUBSTITUA-PELO-NOME-DO-BUCKET"
+    }
+  ]
+}

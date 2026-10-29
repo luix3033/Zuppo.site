@@ -1,0 +1,45 @@
+ZUPPO — PROJETO COMPLETO PARA HOSPEDAGEM
+
+Inclui código-fonte React/TypeScript, backend Worker, migrações SQL, testes, documentação, .env.example e build em dist/.
+34 testes e build de produção aprovados nesta exportação.
+Não inclui .git, node_modules, credenciais, .env.local, dados locais ou artefatos temporários.
+
+LOCAL — Node.js 22.13+
+npm ci
+npm run dev
+Abrir http://127.0.0.1:5173. O servidor local não deve ser exposto publicamente.
+
+BUILD
+npm ci
+npm run build
+Frontend: dist/. Backend Worker ESM com assets embutidos: dist/server/index.js.
+npm run preview serve somente os assets, não as APIs.
+
+HOSPEDAGEM
+A hospedagem precisa executar o backend para catálogo, login, ofertas, banners e imagens.
+O pacote pode ser usado como base para Cloudflare Workers com bucket R2 ligado como BUCKET.
+Cloudflare Pages com backend separado requer adaptação das rotas/deploy; esta exportação não implementa essa migração.
+.openai/hosting.json configura a hospedagem Sites atual, não sua conta Cloudflare independente.
+
+EXEMPLO OPCIONAL — CLOUDFLARE WORKERS
+1. Criar/configurar um bucket R2 na sua conta.
+2. Copiar wrangler.hospedagem.example.jsonc para wrangler.jsonc e substituir o nome do bucket.
+3. Executar npm ci e npm run build.
+4. Executar npx wrangler login para autenticar sua conta.
+5. Configurar os valores do projeto atual no runtime, usando o painel Cloudflare ou:
+   npx wrangler secret put SUPABASE_URL
+   npx wrangler secret put SUPABASE_PUBLISHABLE_KEY
+6. Executar npx wrangler deploy.
+7. Configurar domínio e testar login, rascunho, publicação, upload e redirecionamento.
+CATALOG_PROVIDER=supabase já está no exemplo. Não usar service_role ou senha do banco.
+Nenhum deploy em sua conta Cloudflare foi realizado nesta exportação.
+
+DADOS EXISTENTES
+Usar o projeto Supabase atual preserva ofertas e usuários. Não executar novamente migrações já aplicadas.
+O ZIP contém o código e o esquema; não contém backup do banco remoto.
+Imagens enviadas, banners salvos, configurações e eventos estão no R2 atual e NÃO estão neste ZIP.
+Para preservar esse conteúdo na troca de hospedagem, copiar os objetos ao novo bucket mantendo os caminhos.
+Sem essa cópia, a nova hospedagem usa a home padrão e não encontra as imagens antigas em /media/.
+O domínio e compartilhamento atuais não foram alterados.
+
+Leia README.md e docs/supabase-admin.md para os detalhes da aplicação.
