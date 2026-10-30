@@ -1,3 +1,4 @@
+import {catalogConfiguration} from './catalog-config.js';
 import {publicOffer} from './offers.js';
 
 // API HTTP oficial do Supabase: compatível com Node e Cloudflare Workers.
@@ -39,7 +40,7 @@ export function parseCatalogQuery(params = new URLSearchParams()) {
     minDiscount:number('minDiscount',0,100,true),page:number('page',1,10000,true),limit:number('limit',24,100,true)};
   if(query.q.trim().split(/\s+/).filter(Boolean).length>12)bad('Busca muito extensa.');
   if(!['recent','price-asc','price-desc','discount'].includes(query.sort)||query.page<1||query.limit<1)bad('Ordenação ou página inválida.');
-  if(!['','all','games','informatica','celulares','casa','eletrodomesticos','esporte','beleza','bebes','pets','moda'].includes(query.category)||!['','all','amazon','mercado-livre','shopee'].includes(query.store))bad('Categoria ou loja inválida.');
+  if(!['','all','games','informatica','celulares','casa','eletrodomesticos','esporte','beleza','bebes','pets','moda','ferramentas','carros','limpeza','roupa-infantil','brinquedos','datas-comemorativas'].includes(query.category)||!['','all','amazon','mercado-livre','shopee'].includes(query.store))bad('Categoria ou loja inválida.');
   if(params.has('ids')) {
     const ids=params.get('ids')?params.get('ids').split(','):[];
     if(ids.length>200||ids.some(id=>!/^[-a-zA-Z0-9_]{1,100}$/.test(id)))bad('Lista de ofertas inválida.');
@@ -52,6 +53,8 @@ export function parseCatalogQuery(params = new URLSearchParams()) {
   return query;
 }
 export function createSupabaseCatalog(env, fetcher = fetch) {
+  const missing=catalogConfiguration({...env,CATALOG_PROVIDER:'supabase'});
+  if(missing.length){const error=new Error('Configure no runtime do Worker: '+missing.join(', ')+'. As variáveis VITE_* do build não substituem essas configurações.');error.status=503;throw error;}
   const base = new URL(env.SUPABASE_URL);
   if (base.protocol !== 'https:' || base.username || base.password || base.pathname !== '/' || base.search || base.hash) throw Error('URL Supabase inválida');
   if (!env.SUPABASE_PUBLISHABLE_KEY?.startsWith('sb_publishable_')) throw Error('Configure somente a chave publishable');

@@ -11,6 +11,12 @@ export const categories: { id: CategoryId; name: string }[] = [
   { id: 'bebes', name: 'Bebês' },
   { id: 'pets', name: 'Pets' },
   { id: 'moda', name: 'Moda' },
+  { id: 'ferramentas', name: 'Ferramentas' },
+  { id: 'carros', name: 'Carros' },
+  { id: 'limpeza', name: 'Limpeza' },
+  { id: 'roupa-infantil', name: 'Roupa infantil' },
+  { id: 'brinquedos', name: 'Brinquedos' },
+  { id: 'datas-comemorativas', name: 'Datas comemorativas' },
 ];
 
 export const stores: { id: StoreId; name: string }[] = [

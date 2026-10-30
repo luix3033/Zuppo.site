@@ -1,3 +1,4 @@
+import {clientAddress} from './client-address.js';
 /** Erros de entrada e contenção com mensagens próprias para a resposta pública. */
 export class RequestSecurityError extends Error {
   constructor(message, status = 400, retryAfter) {
@@ -53,7 +54,7 @@ export async function readMultipartBody(request, maxBytes = 5 * 1024 * 1024) {
 const localRateWindows = new Map();
 const maximumRateKeys = 4096;
 export async function enforceRateLimit(request, env, {binding = 'AUTH_RATE_LIMITER', keyPrefix = 'request', limit = 30, windowMs = 60000} = {}) {
-  const address = request.headers.get('CF-Connecting-IP') || 'local-or-unknown';
+  const address = await clientAddress(request,env);
   const scope = new URL(request.url).hostname + ':' + keyPrefix + ':' + address;
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(scope));
   const key = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');

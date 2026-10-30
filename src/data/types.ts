@@ -1,4 +1,4 @@
-export type CategoryId = 'games' | 'informatica' | 'celulares' | 'casa' | 'eletrodomesticos' | 'esporte' | 'beleza' | 'bebes' | 'pets' | 'moda';
+export type CategoryId = 'games' | 'informatica' | 'celulares' | 'casa' | 'eletrodomesticos' | 'esporte' | 'beleza' | 'bebes' | 'pets' | 'moda' | 'ferramentas' | 'carros' | 'limpeza' | 'roupa-infantil' | 'brinquedos' | 'datas-comemorativas';
 export type StoreId = 'amazon' | 'mercado-livre' | 'shopee';
 
 export interface OfferPriceRecord {

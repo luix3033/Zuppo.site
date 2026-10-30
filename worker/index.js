@@ -1,3 +1,5 @@
+import {mascotStatusApi} from './mascot-status.js';
+import {catalogConfiguration} from './catalog-config.js';
 import {getSupabaseAdmin,handleAdminAuth} from './admin-auth.js';
 import {createSupabaseAdminCatalog} from './supabase-admin.js';
 import {createSupabaseCatalog,supabaseEnabled} from './supabase.js';
@@ -29,8 +31,8 @@ export function createHandler(assets={},_seed=[],defaultHome={}){
   async function dispatch(request,env,ctx){
     const url=new URL(request.url),path=url.pathname,db=env.BUCKET;
     if(path==='/healthz'&&request.method==='GET'){
-      const ready=env.CATALOG_PROVIDER==='supabase'&&!!env.SUPABASE_URL&&!!env.SUPABASE_PUBLISHABLE_KEY&&!!db&&!!env.ASSETS;
-      return json({status:ready?'ok':'configuration_required'},ready?200:503);
+      const missing=[...catalogConfiguration(env),...(!db?['BUCKET']:[]),...(!env.ASSETS?['ASSETS']:[])];
+      return json({status:missing.length?'configuration_required':'ok',missing},missing.length?503:200);
     }
     if(!path.startsWith('/api/')&&!path.startsWith('/go/')&&!path.startsWith('/media/'))return serveAsset(request,env,assets);
     const external=supabaseEnabled(env)?createSupabaseCatalog(env):null;
@@ -46,6 +48,8 @@ export function createHandler(assets={},_seed=[],defaultHome={}){
     async function visibleOffer(id){return external?external.find(id,request.signal):(await offers()).find(o=>o.id===id&&publicOffer(o));}
     async function adminOffers(){return adminCatalog?adminCatalog.list():(await offers()).filter(o=>!o.isDemo);}
 
+    if(path==='/api/mascot-status'&&request.method==='GET')return mascotStatusApi(request,db);
+    if(path==='/api/admin/mascot-status')return mascotStatusApi(request,db);
     if(path==='/api/settings'&&request.method==='GET')return json(await readSettings(db));
     if(path==='/api/admin/settings'){
       if(request.method==='GET')return json(await readSettings(db));

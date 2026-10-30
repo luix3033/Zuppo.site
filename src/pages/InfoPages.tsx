@@ -44,13 +44,13 @@ export function ContactPage() {
   const channels = [
     { name: 'WhatsApp', icon: MessageCircle, url: siteConfig.whatsappUrl, text: 'Acompanhe os próximos achados pelo WhatsApp.' },
     { name: 'Telegram', icon: Send, url: siteConfig.telegramUrl, text: 'Receba novidades no seu canal de ofertas.' },
-    { name: 'Instagram', icon: Instagram, url: siteConfig.instagramUrl, text: 'Encontre a Zuppo também no seu feed.' },
+    { name: 'Instagram', icon: Instagram, url: siteConfig.instagramUrl, text: siteConfig.instagramUrl.includes('/zuppo.site') ? '@zuppo.site — novidades, dúvidas e parcerias.' : 'Encontre a Zuppo também no seu feed.' },
     { name: 'E-mail', icon: Mail, url: siteConfig.contactEmail ? `mailto:${siteConfig.contactEmail}` : null, text: siteConfig.contactEmail || 'Um canal para dúvidas, sugestões e parcerias.' },
   ].filter(c=>c.url);
 
   return (
     <main className="container info-page">
-      <header className="page-heading"><span className="eyebrow">VAMOS CONVERSAR</span><h1>Um bom papo também é um achado.</h1><p>Dúvidas, sugestões ou uma ideia de parceria? Estes são os canais de contato da Zuppo.</p></header>
+      <header className="page-heading contact-heading"><div><span className="eyebrow">VAMOS CONVERSAR</span><h1>Um bom papo também é um achado.</h1><p>Dúvidas, sugestões ou uma ideia de parceria? Estes são os canais de contato da Zuppo.</p></div><img className="contact-mascot" src="/images/zuppinho-contato.png" alt="Zuppinho colocando uma carta na caixa de correio" width="300" height="275" decoding="async" fetchPriority="high" /></header>
       <div className="contact-grid">
         {channels.map(({ name, icon: Icon, url, text }) => (
           <article className="info-card contact-card" key={name}>

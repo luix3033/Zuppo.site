@@ -1,1 +1,0 @@
-Cloudflare Workers: não restaurar public/_redirects com /* /index.html200. Use not_found_handling:single-page-application e o binding ASSETS, conforme wrangler.hospedagem.example.jsonc. O deploy atualizado está documentado em LEIA-ME-HOSPEDAGEM.txt e docs/refinamento.md. Preserve public/.assetsignore para excluir server/ dos assets.

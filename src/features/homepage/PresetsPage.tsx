@@ -1,0 +1,14 @@
+import {useState} from 'react';
+import {Eye,LayoutTemplate,ArrowRight} from 'lucide-react';
+import {adminFetch} from '../../lib/admin-api';
+import {ocarinaPreset} from './presets';
+import './ocarina.css';
+export function PresetsPage(){
+ const [busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState(false);
+ async function apply(){
+  if(!window.confirm('Aplicar este preset ao rascunho da home? O conteúdo atual do rascunho será substituído. O site publicado só muda quando você publicar pelo editor.'))return;
+  setBusy(true);setError('');setSaved(false);
+  try{const read=await adminFetch('/api/admin/homepage');const current=await read.json();if(!read.ok)throw Error(current.error||'Não foi possível carregar o rascunho.');const response=await adminFetch('/api/admin/homepage',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:ocarinaPreset(current.draft.config),revision:current.draft.revision})});const result=await response.json();if(!response.ok)throw Error(result.error||'Não foi possível aplicar o preset.');setSaved(true);}catch(e){setError((e as Error).message);}finally{setBusy(false);}
+ }
+ return <><section className="preset-panel-intro"><h2>Uma nova atmosfera para cada momento.</h2><p>Explore uma campanha, visualize o layout e aplique ao rascunho. A publicação continua sob seu controle no editor da página inicial.</p></section>{error&&<p className="admin-error" role="alert">{error}</p>}{saved&&<p className="admin-success" role="status">Preset salvo no rascunho. Abra o editor para revisar os textos e publicar quando desejar.</p>}<article className="preset-campaign-card"><div><span className="eyebrow">PRESET DE CAMPANHA · GAMES</span><h2>Ocarina of Time Remake<br/>Uma jornada lendária.</h2><p>Verde-floresta, detalhes dourados, atmosfera de Hyrule e o Zuppinho em modo aventura. Uma home completa com banner exclusivo, trilha de descoberta, categorias e todas as categorias e ofertas do site.</p><div className="preset-campaign-actions"><a className="btn btn-secondary" href="/zuppo-admin/preview?preset=ocarina" target="_blank" rel="noopener noreferrer"><Eye size={16}/>Visualizar preset</a><button className="btn btn-primary" disabled={busy} onClick={()=>void apply()}><LayoutTemplate size={16}/>{busy?'Aplicando…':'Aplicar ao rascunho'}</button></div>{saved&&<a className="btn btn-primary" href="/zuppo-admin/painel?tab=home">Abrir editor e revisar<ArrowRight size={16}/></a>}<small>Preparado para sua campanha de lançamento. Sem data ou disponibilidade presumida. Textos e ofertas são editáveis. Campanha independente da Zuppo, sem vínculo oficial com a Nintendo.</small></div><img src="/images/zuppinho-ocarina.png" alt="Zuppinho aventureiro do preset Ocarina of Time" width="230" height="260"/></article></>;
+}
